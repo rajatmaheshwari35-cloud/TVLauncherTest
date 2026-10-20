@@ -90,7 +90,7 @@ public class MainActivity extends Activity {
         return t;
     }
 
-    private TextView tile(String label, String symbol, int index, boolean dock) {
+    private LinearLayout tile(String label, String symbol, int index, boolean dock) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
@@ -195,7 +195,7 @@ public class MainActivity extends Activity {
         GridLayout grid = new GridLayout(this);
         grid.setColumnCount(4);
         for (int i = 4; i < names.length; i++) {
-            TextView card = tile(names[i], symbols[i], i, false);
+            LinearLayout card = tile(names[i], symbols[i], i, false);
             GridLayout.LayoutParams p = new GridLayout.LayoutParams();
             p.width = 0;
             p.height = 94;
@@ -213,7 +213,7 @@ public class MainActivity extends Activity {
         dock.setBackground(shape(0xFF111114, 26));
         for (int i = 0; i < 4; i++) {
             final int index = i;
-            TextView card = tile(names[i], symbols[i], index, true);
+            LinearLayout card = tile(names[i], symbols[i], index, true);
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, 76, 1);
             p.setMargins(5, 0, 5, 0);
             dock.addView(card, p);
