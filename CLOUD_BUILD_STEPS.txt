@@ -1,0 +1,49 @@
+Build the TV Launcher Test APK in GitHub Actions (no Android Studio needed)
+
+What this does
+--------------
+GitHub's cloud runner compiles this small test app and exposes the APK as a downloadable workflow artifact. This does not connect to or change your TV.
+
+You need
+--------
+- A GitHub account.
+- A web browser.
+- No Android Studio required.
+
+Steps
+-----
+1. Sign in to https://github.com/
+2. Create a NEW repository. Name it TVLauncherTest. You can choose Private.
+3. Open the new repository and use Add file > Upload files.
+4. Extract this ZIP on your PC first. Upload the CONTENTS of the extracted TVLauncherCloudBuild folder, including the hidden .github folder. Make sure app/, build.gradle, settings.gradle, gradle.properties, and .github/workflows/build-apk.yml are at the repository root (do not upload one extra enclosing folder).
+   Tip: if Windows hides .github, use File Explorer's View > Show > Hidden items, or create/upload the workflow file in GitHub with Add file > Create new file and name it exactly:
+   .github/workflows/build-apk.yml
+5. Commit the files to the main branch.
+6. Open the repository's Actions tab. Select "Build TV Launcher Test APK".
+7. If the workflow has not run automatically after upload, click "Run workflow".
+8. Wait for the run to finish successfully (green check mark), open that run, and download the artifact named "tv-launcher-test-apk".
+9. Extract the downloaded artifact ZIP. It contains app-debug.apk.
+10. Copy app-debug.apk to C:\platform-tools and rename it tv-launcher-test.apk.
+
+Install only after the cloud build succeeds
+-------------------------------------------
+In PowerShell:
+  .\adb.exe -s 192.168.1.19:5555 get-state
+  .\adb.exe -s 192.168.1.19:5555 install -r .\tv-launcher-test.apk
+
+If installation fails, stop and send the exact error. Do not enable/disable packages or change security settings.
+
+If installation succeeds, launch the app without changing the default HOME launcher:
+  .\adb.exe -s 192.168.1.19:5555 shell am start -n com.example.tvlaunchertest/.MainActivity
+
+Expected: a black screen saying LAUNCHER TEST. Press Back to leave it.
+Do not select this test app as the default launcher. The test app is not yet the Apple TV-style launcher; it only tests whether the TV accepts and runs a basic Android TV launcher APK.
+
+Safety notes
+------------
+- Package ID: com.example.tvlaunchertest
+- No permissions requested.
+- No network access requested.
+- Does not disable, enable, or uninstall any existing app.
+- Does not change the default launcher.
+- GitHub Actions artifact expires after 7 days; download it after a successful run.

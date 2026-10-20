@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.tvlaunchertest'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.example.tvlaunchertest'
+        minSdk 21
+        targetSdk 30
+        versionCode 1
+        versionName '1.0-test'
+    }
+}
