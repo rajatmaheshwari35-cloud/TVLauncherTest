@@ -132,8 +132,7 @@ public class MainActivity extends Activity {
             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
         buildUi();
-        loadDock();
-        loadGrid();
+        loadAppsAsync();
 
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -148,8 +147,7 @@ public class MainActivity extends Activity {
         super.onResume();
         if (appsDirty) {
             appsDirty = false;
-            loadDock();
-            loadGrid();
+            loadAppsAsync();
         }
         updateClock();
         startNetworkWatch();
@@ -190,9 +188,7 @@ public class MainActivity extends Activity {
             appsDirty = true;
             if (hasWindowFocus()) {
                 appsDirty = false;
-                loadDock();
-                loadGrid();
-                restoreFocus();
+                loadAppsAsync();
             }
         }
     };
@@ -363,6 +359,17 @@ public class MainActivity extends Activity {
     // Apps
     // =====================================================================
 
+    /** Everything needed to draw one app tile, prepared off the main thread. */
+    private static class AppEntry {
+        ResolveInfo ri;
+        String label;
+        Drawable banner;
+        Drawable icon;
+        int glow = DEFAULT_GLOW;
+    }
+
+    private int loadGeneration = 0;
+
     private List<ResolveInfo> leanbackApps() {
         Intent i = new Intent(Intent.ACTION_MAIN);
         i.addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
@@ -370,19 +377,58 @@ public class MainActivity extends Activity {
         return list == null ? new ArrayList<>() : list;
     }
 
-    private void loadDock() {
-        PackageManager pm = getPackageManager();
-        List<ResolveInfo> apps = leanbackApps();
+    /**
+     * Reads the app list, names, banners and glow colours on a background thread,
+     * then builds the tiles on the main thread. The empty layout (clock, pills, dock band)
+     * appears immediately, so the home screen shows up faster after boot.
+     */
+    private void loadAppsAsync() {
+        final int gen = ++loadGeneration;
+        final PackageManager pm = getPackageManager();
+        final String self = getPackageName();
+        new Thread(() -> {
+            List<ResolveInfo> apps = leanbackApps();
+            AppEntry[] dock = new AppEntry[DOCK_PACKAGES.length];
+            List<AppEntry> rest = new ArrayList<>();
+            for (ResolveInfo ri : apps) {
+                String pkg = ri.activityInfo.packageName;
+                if (pkg.equals(self)) continue;
+                int dockIndex = -1;
+                for (int d = 0; d < DOCK_PACKAGES.length; d++) if (DOCK_PACKAGES[d].equals(pkg)) dockIndex = d;
+                AppEntry e = new AppEntry();
+                e.ri = ri;
+                try { e.label = String.valueOf(ri.loadLabel(pm)); } catch (Exception ex) { e.label = pkg; }
+                e.banner = banner(ri, pm);
+                if (e.banner == null) {
+                    try { e.icon = ri.loadIcon(pm); } catch (Exception ignored) { }
+                }
+                if (dockIndex >= 0) {
+                    if (e.banner != null) e.glow = sampleColor(pkg, e.banner);
+                    dock[dockIndex] = e;
+                } else {
+                    rest.add(e);
+                }
+            }
+            Collections.sort(rest, (a, b) -> a.label.compareToIgnoreCase(b.label));
+            handler.post(() -> {
+                if (gen != loadGeneration || isFinishing()) return;
+                applyDock(dock);
+                applyGrid(rest);
+                restoreFocus();
+            });
+        }, "launcher-apps").start();
+    }
+
+    private void applyDock(AppEntry[] dock) {
         for (int i = 0; i < DOCK_PACKAGES.length; i++) {
             FrameLayout tile = (FrameLayout) dockTiles.get(i);
             tile.removeAllViews();
-            ResolveInfo ri = find(apps, DOCK_PACKAGES[i]);
+            AppEntry e = dock[i];
             String name = DOCK_NAMES[i];
-            Drawable art = ri == null ? null : banner(ri, pm);
-            fillCard(tile, art, ri == null ? null : ri.loadIcon(pm), name, ri == null);
+            fillCard(tile, e == null ? null : e.banner, e == null ? null : e.icon, name, e == null);
             info(tile).name = name;
-            info(tile).glow = art == null ? DEFAULT_GLOW : sampleColor(DOCK_PACKAGES[i], art);
-            final ResolveInfo target = ri;
+            info(tile).glow = e == null ? DEFAULT_GLOW : e.glow;
+            final ResolveInfo target = e == null ? null : e.ri;
             final int index = i;
             tile.setOnClickListener(v -> {
                 if (target != null) launch(target);
@@ -395,36 +441,23 @@ public class MainActivity extends Activity {
         showDockTitle(dockTiles.get(col));
     }
 
-    private void loadGrid() {
-        PackageManager pm = getPackageManager();
-        List<ResolveInfo> apps = leanbackApps();
-        List<ResolveInfo> rest = new ArrayList<>();
-        for (ResolveInfo ri : apps) {
-            String p = ri.activityInfo.packageName;
-            if (p.equals(getPackageName())) continue;
-            boolean inDock = false;
-            for (String d : DOCK_PACKAGES) if (d.equals(p)) inDock = true;
-            if (!inDock) rest.add(ri);
-        }
-        Collections.sort(rest, (a, b) ->
-            String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm))));
-
+    private void applyGrid(List<AppEntry> rest) {
         if (gridTiles.contains(lastFocused)) lastFocused = null;
         grid.removeAllViews();
         gridTiles.clear();
         gridLabels.clear();
 
         for (int i = 0; i < rest.size(); i++) {
-            final ResolveInfo ri = rest.get(i);
-            String name = String.valueOf(ri.loadLabel(pm));
+            final AppEntry e = rest.get(i);
+            String name = e.label;
 
             LinearLayout cell = new LinearLayout(this);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setClipChildren(false);
 
             FrameLayout tile = card();
-            fillCard(tile, banner(ri, pm), ri.loadIcon(pm), name, false);
-            tile.setOnClickListener(v -> launch(ri));
+            fillCard(tile, e.banner, e.icon, name, false);
+            tile.setOnClickListener(v -> launch(e.ri));
             cell.addView(tile, new LinearLayout.LayoutParams(-1, dp(108)));
 
             TextView label = text(name, 13, TEXT, "sans-serif");
@@ -890,7 +923,7 @@ public class MainActivity extends Activity {
     }
 
     /** Average the saturated pixels of a banner and brighten the result for the glow. */
-    private int sampleColor(String key, Drawable d) {
+    private synchronized int sampleColor(String key, Drawable d) {
         Integer cached = glowCache.get(key);
         if (cached != null) return cached;
         int result = DEFAULT_GLOW;
