@@ -13,4 +13,21 @@ android {
         versionCode 1
         versionName '1.0-test'
     }
+
+    // One fixed key for every build, so updates install over the previous version.
+    // The key file is created by the GitHub workflow from the TV_KEYSTORE_B64 secret.
+    signingConfigs {
+        stable {
+            storeFile file('tv-launcher.keystore')
+            storePassword 'android'
+            keyAlias 'tvlauncher'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.stable
+        }
+    }
 }
