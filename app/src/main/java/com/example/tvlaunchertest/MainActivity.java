@@ -321,9 +321,12 @@ public class MainActivity extends Activity {
         holder.setClipChildren(false);
 
         glow = new View(this);
-        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(420), dp(150));
+        // A soft round glow, stretched sideways into an ellipse, so it has no hard edges.
+        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(280), dp(280));
         gp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        gp.leftMargin = -dp(60);
+        gp.leftMargin = dp(10);
+        gp.topMargin = dp(10);
+        glow.setScaleX(1.6f);
         holder.addView(glow, gp);
         setGlow(DEFAULT_GLOW);
 
@@ -877,10 +880,12 @@ public class MainActivity extends Activity {
     }
 
     private void setGlow(int color) {
+        int rgb = color & 0x00FFFFFF;
         GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
         g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        g.setGradientRadius(dp(210));
-        g.setColors(new int[] { (color & 0x00FFFFFF) | 0x47000000, (color & 0x00FFFFFF) });
+        g.setGradientRadius(dp(140));
+        g.setColors(new int[] { rgb | 0x50000000, rgb | 0x1E000000, rgb });
         glow.setBackground(g);
     }
 
