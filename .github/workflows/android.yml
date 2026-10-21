@@ -1,4 +1,3 @@
-
 name: Build TV Launcher Test APK
 
 on:
@@ -19,6 +18,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.TV_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::The TV_KEYSTORE_B64 repository secret is missing."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > app/tv-launcher.keystore
+          keytool -list -keystore app/tv-launcher.keystore -storepass android | grep -i sha
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
